@@ -10,30 +10,20 @@ Suite Teardown      End Suite
 
 *** Test Cases ***
 A Negative Amount Is Blocked
-    [Teardown]      Delete Test Record    Account    ${account_id}
-    ${account_id}=  Set Variable    ${EMPTY}
+    [Teardown]      Delete Test Account
     Login To QA
-    Should Be True    ${API}    msg=This test needs the job's JWT variables (client_id, username, private_key) for its API steps.
-    ${company}=     FakerLibrary.Company
-    ${company}=     Remove String    ${company}    '
-    ${account_id}=  Create Record    Account    Name=${company}
-    ${rt}=          QueryRecords    SELECT Id FROM RecordType WHERE SobjectType = 'Opportunity' AND Name = 'Simple Opportunity' AND IsActive = true
-    ${rt_id}=       Set Variable    ${rt}[records][0][Id]
-    ${name}=        Set Variable    ${company} Renewal
+    ${company}=     Company
     ${close}=       Get Current Date    increment=30 days    result_format=%m/%d/%Y
-    GoTo            ${INSTANCE}/lightning/o/Opportunity/new?recordTypeId\=${rt_id}
+    Create Test Account    ${company}
+    Open New Record Form    Opportunity    Simple Opportunity
     UseModal        On
-    TypeText        Opportunity Name    ${name}
+    TypeText        Opportunity Name    ${company} Renewal
     TypeText        Close Date    ${close}
     PickList        Stage    Qualification
     ComboBox        Account Name    ${company}
     PickList        Forecast Category    Pipeline
     TypeText        Amount    -100
     ClickText       Save    partial_match=False
-    # the validation message does not render inside the modal, so the modal scope is switched off first
-    UseModal        Off
+    UseModal        Off    # the validation message shows outside the modal
     VerifyText      Amount cannot be negative.    timeout=20
-    Log             Blocked as expected: "Amount cannot be negative."    console=True
-    ${saved}=       QueryRecords    SELECT Id FROM Opportunity WHERE Name = '${name}'
-    Should Be Equal As Integers    ${saved}[totalSize]    0
-    Log             Database check: no Opportunity named ${name} was saved    console=True
+    Test Account Should Have No Opportunities
