@@ -12,6 +12,7 @@ Suite Teardown      End Suite
 A Negative Amount Is Blocked
     [Teardown]      Delete Test Account
     Login To QA
+    # App: Sales
     NavigateToApp   LightningSales
     ${company}=     Company
     ${close}=       Get Current Date    increment=30 days    result_format=%m/%d/%Y
