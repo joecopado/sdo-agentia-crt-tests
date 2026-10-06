@@ -6,7 +6,7 @@ environment Copado just deployed to, and runs as a Copado quality gate after the
 
 | Test | User story | Checks |
 |---|---|---|
-| `tests/us_0000032_negative_amount.robot` | US-0000032 Block negative Opportunity amounts | an Opportunity with Amount -100 does not save; "Amount cannot be negative." shows; nothing is created |
+| `tests/us_0000032_negative_amount.robot` | US-0000032 Block negative Opportunity amounts | an Opportunity (Simple Opportunity record type) with Amount -100 does not save; "Amount cannot be negative." shows; no Opportunity is saved; the test's own Account is deleted |
 
 Login (`resources/common.robot`): when Copado runs the test as a quality gate it passes `${loginUrl}`, a one-click
 login to the destination org; otherwise the test logs in with the CRT job's JWT variables `client_id`, `username`,

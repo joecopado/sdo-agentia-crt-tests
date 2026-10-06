@@ -27,6 +27,14 @@ Setup Browser
 End Suite
     Close All Browsers
 
+Delete Test Record
+    [Documentation]    Teardown: delete one record this test created through the API, if it got that far.
+    [Arguments]    ${sobject}    ${record_id}
+    IF    '${record_id}' != '${EMPTY}'
+        Delete Record    ${sobject}    ${record_id}
+        Log    Teardown: deleted ${sobject} ${record_id}    console=True
+    END
+
 Login To QA
     [Documentation]    API session from the JWT variables when present; UI login from Copado's loginUrl, else JWT.
     ...                Sets ${INSTANCE} and ${API} (True when SOQL checks can run).
