@@ -16,10 +16,9 @@ ${loginUrl}         ${EMPTY}
 ${client_id}        NOT_SET
 ${username}         NOT_SET
 ${private_key}      NOT_SET
-# The JWT endpoint: https://login.salesforce.com (production/Developer), https://test.salesforce.com (sandbox), or
-# the org's My Domain URL (custom domain). These tests run against SDO QA, a sandbox; a job variable jwt_url
-# overrides it. Not named login_url: Robot ignores case and underscores, so that name IS ${loginUrl}.
-${jwt_url}          https://test.salesforce.com
+# Optional, and only for an org that refuses both test.salesforce.com and login.salesforce.com: its My Domain URL.
+# Not named login_url: Robot ignores case and underscores, so that name IS ${loginUrl}.
+${jwt_url}          ${EMPTY}
 ${TEST_ACCOUNT_ID}  ${EMPTY}
 
 *** Keywords ***
@@ -40,29 +39,42 @@ Delete Test Record
         Log    Teardown: deleted ${sobject} ${record_id}    console=True
     END
 
-CICD & CRT Dynamic Login
-    [Documentation]    API session from the JWT variables when present; UI login from Copado's loginUrl, else JWT.
-    ...                ${jwt_url} picks the JWT endpoint: login.salesforce.com (no argument), test.salesforce.com
-    ...                (sandbox=True), or any other URL as the org's custom domain (custom_url).
-    ...                Sets ${INSTANCE} and ${API} (True when SOQL checks can run).
-    ${api}=    Evaluate    '${client_id}' != 'NOT_SET'
-    IF    ${api}
-        ${endpoint}=    Evaluate    $jwt_url.strip().rstrip('/')
-        IF    $endpoint.lower() in ('', 'https://login.salesforce.com')
-            JWTAuthenticate    ${client_id}    ${username}    ${private_key}
-        ELSE IF    $endpoint.lower() == 'https://test.salesforce.com'
-            JWTAuthenticate    ${client_id}    ${username}    ${private_key}    sandbox=True
-        ELSE
-            JWTAuthenticate    ${client_id}    ${username}    ${private_key}    custom_url=${endpoint}
+CICD And CRT Dynamic Login
+    [Documentation]    Browser: Copado's loginUrl when CI/CD passes one, else JWT. API: the job's JWT variables, signed in
+    ...                at the org the browser is on. Under CI/CD that is the loginUrl's own host (custom_url), so the
+    ...                API can never read another org. On its own in CRT: sandbox, then production, or ${jwt_url} when
+    ...                set. Sets ${INSTANCE} and ${API} (True when SOQL checks can run).
+    ${jwt}=    Evaluate    $client_id != 'NOT_SET'
+    ${host}=    Set Variable    ${EMPTY}
+    IF    $loginUrl
+        ${found}=    Get Regexp Matches    ${loginUrl}    (https://[^/?]+)    1
+        ${host}=    Set Variable    ${found}[0]
+    END
+    ${api}=    Set Variable    ${False}
+    IF    ${jwt} and $host
+        ${api}=    Run Keyword And Return Status    JWTAuthenticate    ${client_id}    ${username}    ${private_key}    custom_url=${host}
+        IF    not ${api}
+            Log    The job's JWT variables do not sign in at ${host}, the org Copado logged into: API checks are off.    level=WARN    console=True
         END
-        Log    JWT endpoint: ${endpoint}    console=True
+    ELSE IF    ${jwt} and $jwt_url
+        ${custom}=    Evaluate    $jwt_url.strip().rstrip('/')
+        JWTAuthenticate    ${client_id}    ${username}    ${private_key}    custom_url=${custom}
+        ${api}=    Set Variable    ${True}
+    ELSE IF    ${jwt}
+        ${api}=    Run Keyword And Return Status    JWTAuthenticate    ${client_id}    ${username}    ${private_key}    sandbox=True
+        IF    ${api}
+            Log    JWT: signed in as a sandbox (test.salesforce.com)    console=True
+        ELSE
+            JWTAuthenticate    ${client_id}    ${username}    ${private_key}
+            ${api}=    Set Variable    ${True}
+            Log    JWT: signed in as production or Developer Edition (login.salesforce.com)    console=True
+        END
     END
     Set Suite Variable    ${API}    ${api}
-    IF    '${loginUrl}' != '${EMPTY}'
-        ${host}=    Get Regexp Matches    ${loginUrl}    (https://[^/?]+)    1
+    IF    $host
         GoTo    ${loginUrl}
-        Set Suite Variable    ${INSTANCE}    ${host}[0]
-        Log    Logged in through the Copado CI/CD loginUrl: ${INSTANCE}    console=True
+        Set Suite Variable    ${INSTANCE}    ${host}
+        Log    Logged in through the Copado CI/CD loginUrl: ${INSTANCE} (API: ${api})    console=True
     ELSE IF    ${api}
         JwtLogin
         ${instance}=    GetInstanceUrl
