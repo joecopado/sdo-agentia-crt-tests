@@ -10,7 +10,7 @@ Suite Teardown      End Suite
 *** Test Cases ***
 An Account Becomes A Customer
     [Tags]          build-agent-demo
-    Login To QA
+    CICD & CRT Dynamic Login
     Open Sales App
     Open Account    Bluebird Outfitters
     ClickText       Edit    partial_match=False

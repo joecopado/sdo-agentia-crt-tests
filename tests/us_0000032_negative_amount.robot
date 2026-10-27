@@ -11,7 +11,7 @@ Suite Teardown      End Suite
 *** Test Cases ***
 A Negative Amount Is Blocked
     [Teardown]      Delete Test Account
-    Login To QA
+    CICD & CRT Dynamic Login
     # App: Sales
     NavigateToApp   LightningSales
     ${company}=     Company

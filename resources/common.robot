@@ -16,6 +16,10 @@ ${loginUrl}         ${EMPTY}
 ${client_id}        NOT_SET
 ${username}         NOT_SET
 ${private_key}      NOT_SET
+# The JWT endpoint: https://login.salesforce.com (production/Developer), https://test.salesforce.com (sandbox), or
+# the org's My Domain URL (custom domain). These tests run against SDO QA, a sandbox; a job variable jwt_url
+# overrides it. Not named login_url: Robot ignores case and underscores, so that name IS ${loginUrl}.
+${jwt_url}          https://test.salesforce.com
 ${TEST_ACCOUNT_ID}  ${EMPTY}
 
 *** Keywords ***
@@ -36,12 +40,22 @@ Delete Test Record
         Log    Teardown: deleted ${sobject} ${record_id}    console=True
     END
 
-Login To QA
+CICD & CRT Dynamic Login
     [Documentation]    API session from the JWT variables when present; UI login from Copado's loginUrl, else JWT.
+    ...                ${jwt_url} picks the JWT endpoint: login.salesforce.com (no argument), test.salesforce.com
+    ...                (sandbox=True), or any other URL as the org's custom domain (custom_url).
     ...                Sets ${INSTANCE} and ${API} (True when SOQL checks can run).
     ${api}=    Evaluate    '${client_id}' != 'NOT_SET'
     IF    ${api}
-        JWTAuthenticate    ${client_id}    ${username}    ${private_key}    sandbox=true
+        ${endpoint}=    Evaluate    $jwt_url.strip().rstrip('/')
+        IF    $endpoint.lower() in ('', 'https://login.salesforce.com')
+            JWTAuthenticate    ${client_id}    ${username}    ${private_key}
+        ELSE IF    $endpoint.lower() == 'https://test.salesforce.com'
+            JWTAuthenticate    ${client_id}    ${username}    ${private_key}    sandbox=True
+        ELSE
+            JWTAuthenticate    ${client_id}    ${username}    ${private_key}    custom_url=${endpoint}
+        END
+        Log    JWT endpoint: ${endpoint}    console=True
     END
     Set Suite Variable    ${API}    ${api}
     IF    '${loginUrl}' != '${EMPTY}'
