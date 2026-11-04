@@ -13,11 +13,14 @@ Library             FakerLibrary
 
 *** Variables ***
 ${loginUrl}         ${EMPTY}
-
+# ${client_id}        NOT_SET
+# ${username}         NOT_SET
+# ${private_key}      NOT_SET
 # Optional, and only for an org that refuses both test.salesforce.com and login.salesforce.com: its My Domain URL.
 # Not named login_url: Robot ignores case and underscores, so that name IS ${loginUrl}.
+${jwt_url}          ${EMPTY}
 ${TEST_ACCOUNT_ID}  ${EMPTY}
-
+#
 *** Keywords ***
 Setup Browser
     Set Library Search Order    QForce    QWeb
