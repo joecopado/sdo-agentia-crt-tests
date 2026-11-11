@@ -2,8 +2,8 @@
 Documentation       Shared setup for the SDO Agentia CRT tests.
 ...                 Run by Copado CI/CD (a user story test or a quality gate): Copado passes ${loginUrl}, a one-click
 ...                 login to the destination environment. Run on its own in CRT: no ${loginUrl}, so the UI login uses
-...                 the job's JWT variables. The JWT variables (client_id / username / private_key, set in CRT, never
-...                 in this repo) also open an API session whenever they are present, for database checks.
+...                 the job's JWT variables (client_id / username / private_key, set in CRT, never in this repo).
+...                 Under CI/CD the database checks run on the same session as the browser, with no JWT.
 Library             QForce
 Library             QWeb
 Library             String
@@ -13,6 +13,7 @@ Library             FakerLibrary
 
 *** Variables ***
 ${loginUrl}         ${EMPTY}
+# Never declare the JWT variables here: CRT supplies them, and declared in this file they break Live Testing.
 # ${client_id}        NOT_SET
 # ${username}         NOT_SET
 # ${private_key}      NOT_SET
@@ -68,6 +69,7 @@ CICD And CRT Dynamic Login
         END
         Set Suite Variable    ${INSTANCE}    ${host}
         Set Suite Variable    ${API}    ${api}
+        Set Login Url To The Instance
         Log    Logged in through the Copado CI/CD loginUrl: ${INSTANCE} (API: ${API})    console=True
         RETURN
     END
@@ -94,7 +96,21 @@ CICD And CRT Dynamic Login
     ${instance}=    GetInstanceUrl
     Set Suite Variable    ${INSTANCE}    ${instance}
     Set Suite Variable    ${API}    ${True}
+    Set Login Url To The Instance
     Log    Logged in with JWT: ${INSTANCE}    console=True
+
+Set Login Url To The Instance
+    [Documentation]    Sets login_url to the org's address, which QForce's GoToRecord uses when it is given only a
+    ...                record Id. Robot ignores case and underscores, so login_url IS the loginUrl variable: run on its
+    ...                own it is empty, and under CI/CD it holds Copado's link with a live session, which GoToRecord
+    ...                would turn into a broken address. Set for the current test only, so the next test's login still
+    ...                finds Copado's link; for the suite when the login runs in a suite setup.
+    ${in_test}=    Run Keyword And Return Status    Variable Should Exist    \${TEST NAME}
+    IF    ${in_test}
+        Set Test Variable    $login_url    ${INSTANCE}
+    ELSE
+        Set Suite Variable    $login_url    ${INSTANCE}
+    END
 
 CICD Session Into QForce
     [Documentation]    Gives QForce's API keywords the session in the CI/CD loginUrl, then checks QForce answers from
