@@ -2,8 +2,8 @@
 Documentation       Shared setup for the SDO Agentia CRT tests.
 ...                 Run by Copado CI/CD (a user story test or a quality gate): Copado passes ${loginUrl}, a one-click
 ...                 login to the destination environment. Run on its own in CRT: no ${loginUrl}, so the UI login uses
-...                 the job's JWT variables. The JWT variables (client_id / username / private_key, set in CRT, never
-...                 in this repo) also open an API session whenever they are present, for database checks.
+...                 the job's JWT variables (client_id / username / private_key, set in CRT, never in this repo).
+...                 Under CI/CD the database checks run on the same session as the browser, with no JWT.
 Library             QForce
 Library             QWeb
 Library             String
@@ -13,6 +13,7 @@ Library             FakerLibrary
 
 *** Variables ***
 ${loginUrl}         ${EMPTY}
+# Never declare the JWT variables here: CRT supplies them, and declared in this file they break Live Testing.
 # ${client_id}        NOT_SET
 # ${username}         NOT_SET
 # ${private_key}      NOT_SET
@@ -40,49 +41,109 @@ Delete Test Record
     END
 
 CICD And CRT Dynamic Login
-    [Documentation]    Browser: Copado's loginUrl when CI/CD passes one, else JWT. API: the job's JWT variables, signed in
-    ...                at the org the browser is on. Under CI/CD that is the loginUrl's own host (custom_url), so the
-    ...                API can never read another org. On its own in CRT: sandbox, then production, or ${jwt_url} when
-    ...                set. Sets ${INSTANCE} and ${API} (True when SOQL checks can run).
-    ${jwt}=    Evaluate    $client_id != 'NOT_SET'
-    ${host}=    Set Variable    ${EMPTY}
-    IF    $loginUrl
-        ${found}=    Get Regexp Matches    ${loginUrl}    (https://[^/?]+)    1
-        ${host}=    Set Variable    ${found}[0]
+    [Documentation]    One login for a CRT job run on its own and run by a Copado CI/CD quality gate.
+    ...                Under CI/CD the browser opens Copado's loginUrl, and QForce's API keywords (records, SOQL,
+    ...                Execute Apex) get that same session, so both work in whichever environment CI/CD targets,
+    ...                with no JWT. Run on its own in CRT: JWT at test.salesforce.com, then login.salesforce.com,
+    ...                or at jwt_url when set. Sets INSTANCE (the org's URL) and API (True when QForce's API keywords
+    ...                can run). Never call QForce's Revoke under CI/CD: it would end Copado's session for every
+    ...                suite after it.
+    # the loginUrl carries a live session, and the JWT variables are credentials: logging stays off while they are read
+    ${level}=    Set Log Level    NONE
+    TRY
+        ${host}=    Evaluate    (re.findall(r'https://[^/?]+', $loginUrl) or [''])[0]    re
+        ${cicd_session}=    Evaluate    'sid=' in $loginUrl
+        ${client}=    Get Variable Value    ${client_id}    NOT_SET
+        ${jwt}=    Evaluate    $client != 'NOT_SET'
+        IF    ${cicd_session}    GoTo    ${loginUrl}
+    FINALLY
+        Set Log Level    ${level}
     END
-    ${api}=    Set Variable    ${False}
-    IF    ${jwt} and $host
-        ${api}=    Run Keyword And Return Status    JWTAuthenticate    ${client_id}    ${username}    ${private_key}    custom_url=${host}
+    IF    ${cicd_session}
+        ${api}=    CICD Session Into QForce
+        IF    not ${api} and ${jwt}
+            ${api}    ${reason}=    JWT Sign In    custom_url=${host}
+        END
         IF    not ${api}
-            Log    The job's JWT variables do not sign in at ${host}, the org Copado logged into: API checks are off.    level=WARN    console=True
+            Log    QForce cannot use the CI/CD session and the job's JWT variables do not sign in at ${host}: API checks are off.    level=WARN    console=True
         END
-    ELSE IF    ${jwt} and $jwt_url
-        ${custom}=    Evaluate    $jwt_url.strip().rstrip('/')
-        JWTAuthenticate    ${client_id}    ${username}    ${private_key}    custom_url=${custom}
-        ${api}=    Set Variable    ${True}
-    ELSE IF    ${jwt}
-        ${api}=    Run Keyword And Return Status    JWTAuthenticate    ${client_id}    ${username}    ${private_key}    sandbox=True
-        IF    ${api}
-            Log    JWT: signed in as a sandbox (test.salesforce.com)    console=True
-        ELSE
-            JWTAuthenticate    ${client_id}    ${username}    ${private_key}
-            ${api}=    Set Variable    ${True}
-            Log    JWT: signed in as production or Developer Edition (login.salesforce.com)    console=True
-        END
-    END
-    Set Suite Variable    ${API}    ${api}
-    IF    $host
-        GoTo    ${loginUrl}
         Set Suite Variable    ${INSTANCE}    ${host}
-        Log    Logged in through the Copado CI/CD loginUrl: ${INSTANCE} (API: ${api})    console=True
-    ELSE IF    ${api}
-        JwtLogin
-        ${instance}=    GetInstanceUrl
-        Set Suite Variable    ${INSTANCE}    ${instance}
-        Log    Logged in with JWT: ${INSTANCE}    console=True
-    ELSE
-        Fail    No way to log in: Copado passed no loginUrl and the job has no client_id/username/private_key variables.
+        Set Suite Variable    ${API}    ${api}
+        Log    Logged in through the Copado CI/CD loginUrl: ${INSTANCE} (API: ${API})    console=True
+        RETURN
     END
+    IF    not ${jwt}
+        Fail    No way to log in: no CI/CD session in the loginUrl and no client_id/username/private_key variables.
+    END
+    IF    $host
+        # a loginUrl without a session: a URL set on the job, or a CI/CD credential that has expired
+        Log    The loginUrl carries no session: signing in with JWT at ${host}.    level=WARN    console=True
+        ${ok}    ${reason}=    JWT Sign In    custom_url=${host}
+    ELSE IF    $jwt_url
+        ${custom}=    Evaluate    $jwt_url.strip().rstrip('/')
+        ${ok}    ${reason}=    JWT Sign In    custom_url=${custom}
+    ELSE
+        ${ok}    ${reason}=    JWT Sign In    sandbox=${True}
+        IF    not ${ok}
+            ${ok}    ${reason}=    JWT Sign In
+        END
+    END
+    IF    not ${ok}
+        Fail    The job's JWT variables did not sign in: ${reason}
+    END
+    JwtLogin
+    ${instance}=    GetInstanceUrl
+    Set Suite Variable    ${INSTANCE}    ${instance}
+    Set Suite Variable    ${API}    ${True}
+    Log    Logged in with JWT: ${INSTANCE}    console=True
+
+CICD Session Into QForce
+    [Documentation]    Gives QForce's API keywords the session in the CI/CD loginUrl, then checks QForce answers from
+    ...                that session's org. Returns True if it does. Otherwise it clears the session out of QForce and
+    ...                returns False, so QForce never answers from another org.
+    ...                Python on purpose: QForce has no keyword that takes a token, so this sets the three values its
+    ...                API keywords read (_token, instance_url and version_url in QForce.keywords.rest_api; true in
+    ...                QForce 2025.40 and 2026.39). The org check catches a QForce release that changes them.
+    ${level}=    Set Log Level    NONE
+    TRY
+        ${rest}=    Evaluate    importlib.import_module('QForce.keywords.rest_api')    importlib
+        ${token}=    Evaluate    urllib.parse.unquote(re.search(r'[?&]sid=([^&]+)', $loginUrl).group(1))    re, urllib.parse
+        ${host}=    Evaluate    re.search(r'https://[^/?]+', $loginUrl).group(0)    re
+        Evaluate    setattr($rest, '_token', $token)
+        Evaluate    setattr($rest, 'instance_url', $host)
+        Evaluate    setattr($rest, 'version_url', $rest._get_version_url($host, 30))
+        # a Salesforce session starts with its org's 15-character Id
+        ${session_org}=    Evaluate    $token[:15]
+    EXCEPT
+        Run Keyword And Ignore Error    Evaluate    setattr($rest, '_token', None)
+        Set Log Level    ${level}
+        Log    QForce did not take the CI/CD session: check this keyword against the QForce version.    level=WARN    console=True
+        RETURN    ${False}
+    FINALLY
+        Set Log Level    ${level}
+    END
+    ${status}    ${org}=    Run Keyword And Ignore Error    QueryRecords    SELECT Id FROM Organization
+    IF    $status == 'PASS'
+        IF    $org['records'][0]['Id'][:15] == $session_org    RETURN    ${True}
+    END
+    Evaluate    setattr($rest, '_token', None)
+    Log    QForce did not answer from the CI/CD session's org, so the session is cleared out of QForce.    level=WARN    console=True
+    RETURN    ${False}
+
+JWT Sign In
+    [Documentation]    JWTAuthenticate with the job's JWT variables, with logging off so the private key never reaches
+    ...                the log (at TRACE level Robot logs every keyword's arguments). Name where to sign in:
+    ...                custom_url=..., or sandbox=True, or nothing for login.salesforce.com. Returns True or False, and
+    ...                Salesforce's reason when it is False.
+    [Arguments]    &{where}
+    ${level}=    Set Log Level    NONE
+    TRY
+        ${status}    ${reason}=    Run Keyword And Ignore Error    JWTAuthenticate    ${client_id}    ${username}    ${private_key}    &{where}
+    FINALLY
+        Set Log Level    ${level}
+    END
+    # JWTAuthenticate returns the session it opened: hand back Salesforce's reason only when it failed
+    RETURN    ${{ $status == 'PASS' }}    ${{ '' if $status == 'PASS' else $reason }}
 
 Create Test Account
     [Documentation]    Creates an Account through the API for this test. Delete Test Account removes it in teardown.
