@@ -141,7 +141,8 @@ JWT Sign In
     FINALLY
         Set Log Level    ${level}
     END
-    RETURN    ${{ $status == 'PASS' }}    ${reason}
+    # JWTAuthenticate returns the session it opened: hand back Salesforce's reason only when it failed
+    RETURN    ${{ $status == 'PASS' }}    ${{ '' if $status == 'PASS' else $reason }}
 
 Create Test Account
     [Documentation]    Creates an Account through the API for this test. Delete Test Account removes it in teardown.
