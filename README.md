@@ -1,11 +1,9 @@
-# CI/CD loginUrl API probe
+# CI/CD login proof branch
 
-A separate branch for one question: does the session token that Copado CI/CD puts in `${loginUrl}` work for
-the Salesforce REST API (SOQL), or only for the browser?
+`resources/common.robot` is `main`'s resource file with `CICD And CRT Dynamic Login` reworked: under Copado CI/CD
+the browser opens the loginUrl and QForce's API keywords get the same session (no JWT, any environment); run on
+its own in CRT, it signs in with the job's JWT variables as before. `tests/dynamic_login_proof.robot` checks it,
+read-only: the login, a QueryRecords, NavigateToApp, and the browser on the same org as the API.
 
-`tests/cicd_loginurl_api_probe.robot` lists every variable name in the run (names and value lengths, never
-values), then, when a `loginUrl` arrives, makes two read-only REST calls with its token:
-`SELECT Id, Name, IsSandbox FROM Organization` and `chatter/users/me`. Logging is off while the token is
-handled. It never writes to any org.
-
-It runs in its own CRT job, so the quality-gate job on `main` (SDO QA - US-0000032 negative amount) is untouched.
+It runs in CRT job 210329, apart from the quality-gate job on `main` (SDO QA - US-0000032 negative amount).
+Earlier probes on this branch: 28785fe (the loginUrl token answers SOQL), 1bfbd47 (QForce takes the token).
