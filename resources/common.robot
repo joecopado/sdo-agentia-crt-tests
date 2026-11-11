@@ -69,6 +69,7 @@ CICD And CRT Dynamic Login
         END
         Set Suite Variable    ${INSTANCE}    ${host}
         Set Suite Variable    ${API}    ${api}
+        Set Login Url To The Instance
         Log    Logged in through the Copado CI/CD loginUrl: ${INSTANCE} (API: ${API})    console=True
         RETURN
     END
@@ -95,7 +96,21 @@ CICD And CRT Dynamic Login
     ${instance}=    GetInstanceUrl
     Set Suite Variable    ${INSTANCE}    ${instance}
     Set Suite Variable    ${API}    ${True}
+    Set Login Url To The Instance
     Log    Logged in with JWT: ${INSTANCE}    console=True
+
+Set Login Url To The Instance
+    [Documentation]    Sets login_url to the org's address, which QForce's GoToRecord uses when it is given only a
+    ...                record Id. Robot ignores case and underscores, so login_url IS the loginUrl variable: run on its
+    ...                own it is empty, and under CI/CD it holds Copado's link with a live session, which GoToRecord
+    ...                would turn into a broken address. Set for the current test only, so the next test's login still
+    ...                finds Copado's link; for the suite when the login runs in a suite setup.
+    ${in_test}=    Run Keyword And Return Status    Variable Should Exist    \${TEST NAME}
+    IF    ${in_test}
+        Set Test Variable    $login_url    ${INSTANCE}
+    ELSE
+        Set Suite Variable    $login_url    ${INSTANCE}
+    END
 
 CICD Session Into QForce
     [Documentation]    Gives QForce's API keywords the session in the CI/CD loginUrl, then checks QForce answers from
