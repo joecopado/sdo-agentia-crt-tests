@@ -24,8 +24,10 @@ for the whole suite.
 `login_url/<record Id>`. Empty (run on its own): it becomes the org's address. Copado's link with its session (CI/CD):
 it becomes the link's host, the org's address; the session went to QForce. An org address set on the job: kept.
 
-**The persona test.** Signed in as the job's user: an Account created through the API for the persona, opened with
+**The persona test.** Signed in as the job's user: a Contact created through the API and owned by the persona, opened with
 `GoToRecord`, changed through the API and read in the UI, changed by Apex and read back with SOQL. Then `JwtLoginAs` by
 the persona's FULL NAME (a sandbox keeps production users' full names; usernames get the sandbox name appended), the
-persona edits the Account in the UI, and the API reads back the change and that the persona made it. Screenshots go to
-the log with `LogScreenshot`. The Account is deleted in the suite teardown.
+persona edits the Contact's Title in the UI, and the API reads back the new Title and that the persona made the change.
+Screenshots go to the log with `LogScreenshot`. The Contact is deleted in the suite teardown. The persona (Cindy Central,
+SDO-Sales) may read, create and edit Contacts in SDO dev1 and QA, and has no access to Accounts: the first run used an
+Account, and her page said "This page isn't available" -- the persona's real restriction, while the admin could open it.
