@@ -56,6 +56,8 @@ The Persona Edits Their Contact In The UI
     TypeText    Title    Edited by ${PERSONA}
     ClickText    Save    partial_match=False
     UseModal    Off
+    # a Save from the edit URL closes the modal onto the page behind it (her Home): open the record to see the change
+    GoToRecord    ${CONTACT_ID}
     VerifyText    Edited by ${PERSONA}
     LogScreenshot
     # the API is still the signed-in user: it reads the change back, and who made it
