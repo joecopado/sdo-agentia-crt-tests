@@ -20,8 +20,10 @@ HOW IT WORKS
     * the session goes to QForce's API keywords. QForce has no keyword that takes a session, so the login sets the three
       values its API keywords read in QForce.keywords.rest_api (_token, instance_url and version_url; true in QForce
       2025.40 and 2026.39), then checks QForce answers from that session's org.
-  Run on its own in CRT there is no session: JWTAuthenticate with the job's client_id / username / private_key, then
-  JwtLogin.
+  Run on its own in CRT there is no session: JWTAuthenticate with client_id / username / private_key, then JwtLogin. It
+  finds the org itself: test.salesforce.com, then login.salesforce.com; the credentials exist in one org only, so the
+  first address that accepts them is theirs. Optional ${jwt_url} (our own variable; CRT does not define it), the org's
+  My Domain address set beside the JWT variables, signs in there directly, for an org that accepts the JWT nowhere else.
   Either way, for the whole suite: ${INSTANCE} is the org's address, ${API} says whether QForce's API keywords can run,
   and ${login_url} is the org's address, so GoToRecord takes a bare record Id.
 
@@ -106,11 +108,19 @@ class CicdDynamicLogin:
             logger.warn(f"The loginUrl carries no session: signing in with JWT at {host}.")
             ok, reason = self._jwt_sign_in(custom_url=host)
         elif jwt_url:
+            # jwt_url names the org this run is meant for: if it refuses the credentials, the login fails rather than
+            # guessing on, because a guess would sign in wherever the credentials live and test that org instead
             ok, reason = self._jwt_sign_in(custom_url=jwt_url)
         else:
+            # no address: the credentials decide. They exist in one org only, so the first address that accepts them
+            # is theirs: test.salesforce.com reaches sandboxes, login.salesforce.com production orgs
             ok, reason = self._jwt_sign_in(sandbox=True)
             if not ok:
                 ok, reason = self._jwt_sign_in()
+            if not ok:
+                raise AssertionError(f"The job's JWT variables did not sign in at test.salesforce.com or "
+                                     f"login.salesforce.com: {reason}. An org that accepts the JWT only at its own "
+                                     f"address needs jwt_url set to that address.")
         if not ok:
             raise AssertionError(f"The job's JWT variables did not sign in: {reason}")
         builtin.run_keyword("QForce.JwtLogin")
