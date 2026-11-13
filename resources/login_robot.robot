@@ -9,9 +9,9 @@ Library             QWeb
 
 *** Variables ***
 ${loginUrl}         ${EMPTY}
-# Optional, and only for an org that refuses both test.salesforce.com and login.salesforce.com: its My Domain URL.
-# Not named login_url: Robot ignores case and underscores, so that name IS ${loginUrl}.
-${jwt_url}          ${EMPTY}
+# jwt_url: optional and our own (CRT does not define it). The org's My Domain address, only for an org that accepts the
+# JWT nowhere else; set it beside client_id / username / private_key (robot or job), never in a file. Not named
+# login_url: Robot ignores case and underscores, so that name IS ${loginUrl}.
 
 *** Keywords ***
 CICD And CRT Dynamic Login
@@ -19,8 +19,10 @@ CICD And CRT Dynamic Login
     ...                JwtLoginAs, GoToRecord...) in to one org, however the job was started.
     ...                Under Copado CI/CD, Copado's loginUrl is split in two: the browser opens it, and the session in it
     ...                goes to QForce's API keywords. No JWT is needed, and the org is whichever one CI/CD targets.
-    ...                Run on its own in CRT: JWT with the job's client_id / username / private_key, at
-    ...                test.salesforce.com, then login.salesforce.com, or at jwt_url when set.
+    ...                Run on its own in CRT: JWT with client_id / username / private_key. It finds the org itself:
+    ...                test.salesforce.com, then login.salesforce.com, and the credentials exist in one org only, so the
+    ...                first address that accepts them is theirs. Optional jwt_url, the org's own My Domain address, signs
+    ...                in there directly, for an org that accepts the JWT nowhere else.
     ...                Afterwards, for the whole suite: INSTANCE is the org's address, API is True when QForce's API
     ...                keywords can run, and login_url is the org's address, so GoToRecord takes a bare record Id.
     ...                Called again in the same suite, it signs the browser back in as the same user (after JwtLoginAs).
@@ -55,17 +57,25 @@ CICD And CRT Dynamic Login
     IF    not ${jwt}
         Fail    No way to log in: no CI/CD session in the loginUrl and no client_id/username/private_key variables.
     END
+    ${org_address}=    Get Variable Value    ${jwt_url}    ${EMPTY}
+    ${org_address}=    Evaluate    $org_address.strip().rstrip('/')
     IF    $host
         # a loginUrl without a session: an address set on the job, or a CI/CD credential that has expired
         Log    The loginUrl carries no session: signing in with JWT at ${host}.    level=WARN    console=True
         ${ok}    ${reason}=    JWT Sign In    custom_url=${host}
-    ELSE IF    $jwt_url
-        ${custom}=    Evaluate    $jwt_url.strip().rstrip('/')
-        ${ok}    ${reason}=    JWT Sign In    custom_url=${custom}
+    ELSE IF    $org_address
+        # jwt_url names the org this run is meant for: if it refuses the credentials, the login fails rather than
+        # guessing on, because a guess would sign in wherever the credentials live and test that org instead
+        ${ok}    ${reason}=    JWT Sign In    custom_url=${org_address}
     ELSE
+        # no address: the credentials decide. They exist in one org only, so the first address that accepts them is
+        # theirs: test.salesforce.com reaches sandboxes, login.salesforce.com production orgs
         ${ok}    ${reason}=    JWT Sign In    sandbox=${True}
         IF    not ${ok}
             ${ok}    ${reason}=    JWT Sign In
+        END
+        IF    not ${ok}
+            Fail    The job's JWT variables did not sign in at test.salesforce.com or login.salesforce.com: ${reason}. An org that accepts the JWT only at its own address needs jwt_url set to that address.
         END
     END
     IF    not ${ok}
