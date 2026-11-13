@@ -160,9 +160,9 @@ CICD Session Into QForce
 
 JWT Sign In
     [Documentation]    JWTAuthenticate with the job's JWT variables, with logging off so the private key never reaches
-    ...                the log (at TRACE level Robot logs every keyword's arguments). Name where to sign in:
-    ...                custom_url=..., or sandbox=True, or nothing for login.salesforce.com. Returns True or False, and
-    ...                Salesforce's reason when it is False.
+    ...                the log (at TRACE level Robot logs every keyword's arguments). Name where to sign in: custom_url
+    ...                set to the org's address, or sandbox set to True, or nothing for login.salesforce.com. Returns
+    ...                True or False, and Salesforce's reason when it is False.
     [Arguments]    &{where}
     ${level}=    Set Log Level    NONE
     TRY

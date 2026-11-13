@@ -21,11 +21,12 @@ The Signed-In User Works Through The API And The UI
     Should Be True    $login_url == $INSTANCE    msg=login_url is not the org's address.
     LogScreenshot
     # API: the persona's user Id, then a Contact the persona owns
-    ${persona}=    QueryRecords    SELECT Id FROM User WHERE Name = '${PERSONA}' AND IsActive = true
-    Should Be Equal As Integers    ${persona}[totalSize]    1    msg=No single active user named ${PERSONA} in this org.
+    # (not ${persona}: Robot ignores case, so that IS ${PERSONA}, and Live Testing would keep the query result in it)
+    ${persona_user}=    QueryRecords    SELECT Id FROM User WHERE Name = '${PERSONA}' AND IsActive = true
+    Should Be Equal As Integers    ${persona_user}[totalSize]    1    msg=No single active user named ${PERSONA} in this org.
     ${first}=    FakerLibrary.First Name
     ${last}=    FakerLibrary.Last Name
-    ${id}=    CreateRecord    Contact    FirstName=${first}    LastName=${last}    OwnerId=${persona}[records][0][Id]
+    ${id}=    CreateRecord    Contact    FirstName=${first}    LastName=${last}    OwnerId=${persona_user}[records][0][Id]
     Set Suite Variable    ${CONTACT_ID}    ${id}
     Set Suite Variable    ${CONTACT_NAME}    ${first} ${last}
     # UI: GoToRecord takes the bare Id
