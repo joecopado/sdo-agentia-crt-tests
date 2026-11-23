@@ -1,17 +1,15 @@
-# CI/CD + CRT persona demo (branch `cicd-crt-persona-demo`)
+# SDO Agentia CRT tests: the SDO QA quality gate (job 204886)
 
 One login for a CRT job that runs on its own in CRT AND as a Copado CI/CD quality gate, in two versions that do the
-same thing, and one test under a specific user that proves it. Kept apart from `main` (the SDO QA gate job 204886).
+same thing (the Robot Framework one is what to share; the Python one is for our development team), and one test under a specific user that proves it.
 
 | File | What it is |
 |---|---|
 | `resources/common.robot` | the browser setup and record cleanup every suite shares |
 | `resources/login_robot.robot` | `CICD And CRT Dynamic Login`, written in Robot Framework |
 | `resources/CicdDynamicLogin.py` | the same keyword written in Python, for teams that write keywords in Python |
+| `tests/create_lead.robot`, `account_becomes_customer.robot`, `us_0000032_negative_amount.robot` | the quality-gate tests; each imports the login |
 | `tests/02__persona_robot.robot` | the persona test with the Robot Framework login |
-| `tests/03__persona_python.robot` | the same test with the Python login: only its import line differs |
-| `tests/01__stock_qforce_under_cicd.robot` | runs first: stock QForce under CI/CD with no login keyword (skipped when run on its own) |
-| `tests/04__dynamic_expressions_probe.robot` | probe: what the CI/CD Test record's Variables deliver (shapes only, never values) |
 
 **The login.** Under Copado CI/CD, Copado passes one variable, `${loginUrl}`: a frontdoor link with a live session in
 it. The login splits it in two: the browser opens the link, and the session goes to QForce's API keywords, so
@@ -31,3 +29,6 @@ persona edits the Contact's Title in the UI, and the API reads back the new Titl
 Screenshots go to the log with `LogScreenshot`. The Contact is deleted in the suite teardown. The persona (Cindy Central,
 SDO-Sales) may read, create and edit Contacts in SDO dev1 and QA, and has no access to Accounts: the first run used an
 Account, and her page said "This page isn't available" -- the persona's real restriction, while the admin could open it.
+
+
+**Canonical copy for other teams:** github.com/joecopado/crt-cicd-common (Robot Framework login only). The probes (stock QForce under CI/CD, Dynamic Expressions, the Python persona test) stay on branch `cicd-crt-persona-demo`.
